@@ -14,15 +14,12 @@ const (
 	questionMark = "?"
 	asterisk     = "*"
 	plusSign     = "+"
-	wildCard     = "."
 	backSlash    = "\\"
 )
 
 func main() {
-	// write your code here
 	regex, text := spitRegAndText()
 
-	// we format-print the boolean result from the function call
 	fmt.Printf("%t\n", checkRegMatch(regex, text))
 }
 
@@ -31,10 +28,19 @@ func spitRegAndText() (regex, text string) {
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	inputStr = scanner.Text()
-
 	inputSlc := strings.Split(inputStr, "|")
 	regex = inputSlc[0]
 	text = strings.Join(inputSlc[1:], "")
+
+	if strings.Contains(regex, backSlash) {
+		regex = strings.Replace(regex, backSlash, "", 1)
+	} else {
+		r, isOk := checkRepetition(regex, text)
+		if !isOk {
+			return
+		}
+		regex = r
+	}
 
 	return regex, text
 }
@@ -43,34 +49,33 @@ func checkFirstChar(regex, text string) bool {
 	return regex[0] == text[0] || regex[0] == '.'
 }
 
-func checkRepetition(regex string, text *string) (r string, isPresent, isOk bool) {
-	var repCharIndex int
-
-	tVal := *text
+func checkRepetition(regex, text string) (r string, isOk bool) {
+	var repCharIndex, oCount int
 
 	switch {
 	// THIS IS SORTED OUT - NO TOUCHY
 	case strings.Contains(regex, questionMark):
 		repCharIndex = strings.Index(regex, questionMark)
-		temp := strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], "")
 
+		temp := strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], "")
 		if regex[repCharIndex-1] == '.' {
-			if tVal != temp {
-				r, isOk = strings.ReplaceAll(regex, questionMark, ""), true
-			} else {
+			if text == temp {
 				r, isOk = temp, true
+			} else {
+				r, isOk = strings.ReplaceAll(regex, questionMark, ""), true
 			}
-			isPresent = true
 		} else {
 			temp = strings.ReplaceAll(regex, questionMark, "")
-			if strings.Count(*text, string(regex[repCharIndex-1])) == 1 {
-				r, isOk = temp, true
-			} else if !strings.Contains(*text, string(regex[repCharIndex-1])) && len(*text) < len(temp) {
-				r, isOk = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], ""), true
+			if strings.Count(text, string(regex[repCharIndex-1])) > 1 {
+				isOk = false
 			} else {
-				r, isOk = temp, false
+				if strings.Count(text, string(regex[repCharIndex-1])) == 0 {
+					r = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], "")
+				} else {
+					r = temp
+				}
+				isOk = true
 			}
-			isPresent = true
 		}
 
 	// THIS ONE AS WELL!!
@@ -79,7 +84,7 @@ func checkRepetition(regex string, text *string) (r string, isPresent, isOk bool
 		temp := strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], "")
 
 		if regex[repCharIndex-1] == '.' {
-			if *text != temp {
+			if text != temp {
 				r = strings.ReplaceAll(regex, asterisk, "")
 			} else {
 				r = temp
@@ -87,46 +92,47 @@ func checkRepetition(regex string, text *string) (r string, isPresent, isOk bool
 			isOk = true
 		} else {
 			temp = strings.ReplaceAll(regex, asterisk, "")
-			if regex[repCharIndex-1] != tVal[repCharIndex-1] && len(tVal) >= len(temp) {
-				isOk = false
-			} else if strings.Count(*text, string(regex[repCharIndex-1])) >= 1 {
-				oCount := strings.Count(*text, string(tVal[repCharIndex-1]))
-				temp = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], strings.Repeat(string(tVal[repCharIndex-1]), oCount))
-				r, isOk = temp, true
+			if strings.Count(text, string(regex[repCharIndex-1])) >= 1 {
+				oCount = strings.Count(text, string(text[repCharIndex-1]))
+				temp = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], strings.Repeat(string(text[repCharIndex-1]), oCount))
+				if !strings.Contains(temp, text) {
+					isOk = false
+				} else {
+					r, isOk = temp, true
+				}
 			} else {
 				r, isOk = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], ""), true
 			}
 		}
-		isPresent = true
 
 	case strings.Contains(regex, plusSign):
 		repCharIndex = strings.Index(regex, plusSign)
+
 		temp := strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], "")
 		if regex[repCharIndex-1] == '.' {
-			if *text == temp {
+			if strings.Contains(temp, text) {
 				isOk = false
 			} else {
-				r, isOk = strings.ReplaceAll(regex, plusSign, ""), true
+				isOk = true
 			}
+			r = strings.ReplaceAll(regex, plusSign, "")
 		} else {
 			temp = strings.ReplaceAll(regex, plusSign, "")
-			if strings.Count(tVal, string(regex[repCharIndex-1])) >= 1 {
-				oCount := strings.Count(*text, string(tVal[repCharIndex-1]))
-				temp = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], strings.Repeat(string(tVal[repCharIndex-1]), oCount))
+			if strings.Count(text, string(regex[repCharIndex-1])) >= 1 {
+				oCount = strings.Count(text, string(text[repCharIndex-1]))
+				temp = strings.ReplaceAll(regex, regex[repCharIndex-1:repCharIndex+1], strings.Repeat(string(text[repCharIndex-1]), oCount))
 				r, isOk = temp, true
 			} else {
-				r, isOk = temp, false
+				isOk = false
 			}
 		}
-		isPresent = true
 
 	default:
-		r, isPresent, isOk = regex, false, true
+		r, isOk = regex, true
 	}
-	return r, isPresent, isOk
-}
 
-// The recursive way
+	return r, isOk
+}
 
 func checkRegMatch(regex, text string) bool {
 	if len(regex) == 0 || regex == text {
@@ -135,35 +141,30 @@ func checkRegMatch(regex, text string) bool {
 	if len(text) == 0 {
 		return false
 	}
-	r, isPresent, isOk := checkRepetition(regex, &text)
 
-	if isPresent && !isOk {
-		return false
-	}
-
-	isFirstOk := checkFirstChar(r, text)
-
-	if strings.HasPrefix(r, prefix) {
-		isFirstOk = checkFirstChar(r[1:], text)
-		if isFirstOk {
-			if strings.HasSuffix(r, suffix) {
-				if !isPresent {
-					return strings.EqualFold(text, r[1:len(r)-1])
-				}
-				return checkRegMatch(r[2:len(r)-1], text[1:])
-			} else {
-				return checkRegMatch(r[2:], text[1:])
+	if strings.HasPrefix(regex, prefix) {
+		if strings.HasSuffix(regex, suffix) {
+			if !checkFirstChar(regex[1:], text) {
+				return strings.EqualFold(regex[1:len(regex)-1], text)
 			}
+			return checkRegMatch(regex[2:len(regex)-1], text)
 		} else {
-			return strings.HasSuffix(text, r)
+			if !checkFirstChar(regex[1:], text) {
+				return strings.HasPrefix(text, regex[1:])
+			}
+			return checkRegMatch(regex[2:], text[1:])
 		}
 	}
 
-	if !strings.HasSuffix(r, suffix) {
-		if !isFirstOk {
-			return strings.HasSuffix(text, r)
+	if strings.HasSuffix(regex, suffix) {
+		if !checkFirstChar(regex, text) {
+			return strings.HasSuffix(text, regex[:len(regex)-1])
 		}
-		return checkRegMatch(r[1:], text[1:])
+		return checkRegMatch(regex[1:len(regex)-1], text)
+	} else {
+		if !checkFirstChar(regex, text) {
+			return strings.HasSuffix(text, regex)
+		}
+		return checkRegMatch(regex[1:], text[1:])
 	}
-	return checkRegMatch(r[1:len(r)-1], text)
 }
